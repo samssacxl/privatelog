@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f5f5f7" />
+  <title>PrivateLog</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">PRIVATE JOURNAL</div>
+        <h1 id="pageTitle">Home</h1>
+      </div>
+      <button class="primary compact" id="quickAddBtn">＋ Encounter</button>
+    </header>
+
+    <main id="view"></main>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <button data-view="home" class="active">⌂<span>Home</span></button>
+      <button data-view="partners">◎<span>People</span></button>
+      <button data-view="timeline">≡<span>Journal</span></button>
+      <button data-view="calendar">▦<span>Calendar</span></button>
+      <button data-view="more">•••<span>More</span></button>
+    </nav>
+  </div>
+
+  <dialog id="modal">
+    <form method="dialog" class="modal-card" id="modalContent"></form>
+  </dialog>
+
+  <input type="file" id="importFile" accept="application/json" hidden />
+  <script src="app.js"></script>
+</body>
+</html>

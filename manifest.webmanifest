@@ -1,0 +1,17 @@
+{
+  "name": "PrivateLog",
+  "short_name": "PrivateLog",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f5f7",
+  "theme_color": "#f5f5f7",
+  "description": "A private, offline-first personal encounter journal.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
