@@ -56,42 +56,47 @@ function renderHome(el){
   setTitle("Home");
   const countries=new Set(db.encounters.map(e=>e.country).filter(Boolean));
   el.innerHTML=`
+    <section class="hero-card">
+      <div class="hero-icon" aria-hidden="true">✦</div>
+      <div><div class="hero-kicker">Your private journal</div><h2>What happened today?</h2><p>Log an encounter in a few quick steps.</p></div>
+      <button class="primary hero-action" onclick="openEncounterModal()"><span aria-hidden="true">✚</span> New encounter</button>
+    </section>
     <div class="grid stats-grid">
-      ${stat(db.partners.length,"People")}
-      ${stat(db.encounters.length,"Encounters")}
-      ${stat(countries.size,"Countries")}
-      ${stat(db.trips.length,"Trips")}
+      ${stat(db.partners.length,"👥 People")}
+      ${stat(db.encounters.length,"♡ Encounters")}
+      ${stat(countries.size,"◎ Countries")}
+      ${stat(db.trips.length,"✈ Trips")}
     </div>
     <section class="section">
-      <div class="section-head"><h2>Recent</h2><button class="secondary compact" onclick="go('timeline')">View all</button></div>
+      <div class="section-head"><div><div class="section-icon">◷</div><h2>Recent journal</h2></div><button class="secondary compact" onclick="go('timeline')">View all →</button></div>
       <div class="list">${recentRows(db.encounters.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,6))}</div>
     </section>
     <section class="section">
-      <div class="section-head"><h2>Quick actions</h2></div>
-      <div class="toolbar">
-        <button class="primary" onclick="openPartnerModal()">＋ Partner</button>
-        <button class="secondary" onclick="openTripModal()">＋ Trip</button>
-        <button class="secondary" onclick="go('partners')">Browse partners</button>
+      <div class="section-head"><div><div class="section-icon">⚡</div><h2>Quick actions</h2></div></div>
+      <div class="toolbar action-grid">
+        <button class="secondary action-card" onclick="openPartnerModal()"><span>👤</span><strong>Add person</strong><small>Create a profile</small></button>
+        <button class="secondary action-card" onclick="openTripModal()"><span>✈</span><strong>Add trip</strong><small>Group memories</small></button>
+        <button class="secondary action-card" onclick="go('partners')"><span>👥</span><strong>Browse people</strong><small>View profiles</small></button>
       </div>
     </section>`;
 }
 function stat(n,label){ return `<div class="card stat"><strong>${n}</strong><span>${label}</span></div>`; }
 function recentRows(items){
-  if(!items.length) return `<div class="card empty">No encounters yet. Add your first one.</div>`;
+  if(!items.length) return `<div class="card empty"><div class="empty-icon">♡</div><strong>No encounters yet</strong><span>Tap “New encounter” to create your first journal entry.</span></div>`;
   return items.map(e=>{
     const names=encounterPartners(e).map(p=>esc(p.nickname)).join(", ")||"Unknown";
     return `<button class="row" onclick="openEncounterModal('${e.id}')">
       <div class="row-main"><div class="row-title">${names}</div>
       <div class="meta">${fmt(e.date)} · ${esc([e.venue,e.city,e.country].filter(Boolean).join(", "))}</div>
       <div class="badges"><span class="badge">${esc(e.protection||"Not set")}</span>${contextLabel(e)?`<span class="badge">${contextLabel(e)}</span>`:""}</div></div>
-      <span>›</span></button>`;
+      <span class="chevron">›</span></button>`;
   }).join("");
 }
 function renderPartners(el){
   setTitle("People");
   el.innerHTML=`
-    <div class="search"><input id="partnerSearch" placeholder="Search nickname, nationality or Instagram" /></div>
-    <div class="section-head"><h2>People</h2><button class="primary compact" onclick="openEncounterModal()">＋ Encounter</button></div>
+    <div class="search"><input id="partnerSearch" placeholder="Search people by nickname, nationality or Instagram" /></div>
+    <div class="section-head"><div><div class="section-icon">👥</div><h2>Your people</h2></div><button class="primary compact" onclick="openEncounterModal()">✚ Log</button></div>
     <div class="list" id="partnerList"></div>`;
   const input=document.querySelector("#partnerSearch");
   input.oninput=()=>drawPartnerList(input.value);
@@ -108,8 +113,8 @@ function drawPartnerList(q){
       <div class="row-main">
         <div class="row-title">${p.favourite?"⭐ ":""}${esc(p.nickname)} ${p.nationality?`· ${esc(p.nationality)}`:""}</div>
         <div class="meta">${ratingStars(p.rating)} · ${es.length} encounter${es.length===1?"":"s"}</div>
-      </div><span>›</span></button>`;
-  }).join(""):`<div class="card empty">No matching partners.</div>`;
+      </div><span class="chevron">›</span></button>`;
+  }).join(""):`<div class="card empty"><div class="empty-icon">⌕</div><strong>No people found</strong><span>Try another search or log a new encounter.</span></div>`;
 }
 function openPartner(id){ selectedPartnerId=id; render(); }
 function renderPartnerProfile(el,id){
@@ -144,9 +149,9 @@ function renderPartnerProfile(el,id){
     </section>`;
 }
 function renderTimeline(el){
-  setTitle("Timeline");
+  setTitle("Journal");
   const sorted=db.encounters.slice().sort((a,b)=>b.date.localeCompare(a.date));
-  if(!sorted.length){ el.innerHTML=`<div class="card empty">No timeline yet.</div>`; return; }
+  if(!sorted.length){ el.innerHTML=`<div class="card empty">Your journal is empty.</div>`; return; }
   const groups={};
   sorted.forEach(e=>{
     const k=new Intl.DateTimeFormat("en-AU",{month:"long",year:"numeric"}).format(new Date(e.date+"T12:00:00"));
@@ -191,11 +196,11 @@ function renderMore(el){
   setTitle("More");
   el.innerHTML=`
     <div class="tabs">
-      <button class="secondary" onclick="renderMoreSection('search')">Search</button>
-      <button class="secondary" onclick="renderMoreSection('trips')">Trips</button>
-      <button class="secondary" onclick="renderMoreSection('stats')">Statistics</button>
-      <button class="secondary" onclick="renderMoreSection('network')">Network</button>
-      <button class="secondary" onclick="renderMoreSection('settings')">Settings</button>
+      <button class="secondary" onclick="renderMoreSection('search')">⌕ Search</button>
+      <button class="secondary" onclick="renderMoreSection('trips')">✈ Trips</button>
+      <button class="secondary" onclick="renderMoreSection('stats')">▥ Insights</button>
+      <button class="secondary" onclick="renderMoreSection('network')">◎ Connections</button>
+      <button class="secondary" onclick="renderMoreSection('settings')">⚙ Settings</button>
     </div>
     <div id="moreSection" class="section"></div>`;
   renderMoreSection("search");
@@ -218,10 +223,10 @@ function renderMoreSection(section){
     drawNetwork();
   } else {
     el.innerHTML=`<div class="list">
-      <button class="row" onclick="exportData()"><div><div class="row-title">Export backup</div><div class="meta">Download all records as JSON</div></div><span>↓</span></button>
-      <button class="row" onclick="document.querySelector('#importFile').click()"><div><div class="row-title">Import backup</div><div class="meta">Replace current data from JSON</div></div><span>↑</span></button>
-      <button class="row" onclick="installHelp()"><div><div class="row-title">Install on iPhone</div><div class="meta">Safari → Share → Add to Home Screen</div></div><span>›</span></button>
-      <button class="row" onclick="clearAll()"><div><div class="row-title">Delete all data</div><div class="meta">Cannot be undone</div></div><span>›</span></button>
+      <button class="row" onclick="exportData()"><div><div class="row-title">↓ Export backup</div><div class="meta">Download all records as JSON</div></div><span>↓</span></button>
+      <button class="row" onclick="document.querySelector('#importFile').click()"><div><div class="row-title">↑ Import backup</div><div class="meta">Replace current data from JSON</div></div><span>↑</span></button>
+      <button class="row" onclick="installHelp()"><div><div class="row-title">▣ Install on iPhone</div><div class="meta">Safari → Share → Add to Home Screen</div></div><span>›</span></button>
+      <button class="row" onclick="clearAll()"><div><div class="row-title">⌫ Delete all data</div><div class="meta">Cannot be undone</div></div><span>›</span></button>
     </div>`;
   }
 }
