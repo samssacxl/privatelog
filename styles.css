@@ -210,3 +210,27 @@ a { color:inherit; text-decoration-thickness:1px; text-underline-offset:3px; }
   .action-grid { grid-template-columns:1fr; }
   .hero-card { padding:17px; }
 }
+
+/* v0.2.3 — identities and per-person interactions */
+.person-choice { text-align:left; display:grid; justify-items:start; gap:3px; min-height:86px; }
+.person-choice strong { font-size:15px; }
+.interaction-card {
+  display:grid; gap:13px; padding:16px; border:1px solid var(--line);
+  border-radius:20px; background:var(--card); box-shadow:0 8px 24px rgba(0,0,0,.035);
+}
+.interaction-head { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+.interaction-head > div { display:grid; gap:3px; }
+.interaction-head strong { font-size:18px; }
+.interaction-head span { color:var(--muted); font-size:12px; }
+.activity-grid { display:flex; flex-wrap:wrap; gap:7px; margin-top:3px; }
+.activity-chip { display:block; cursor:pointer; }
+.activity-chip input { position:absolute; opacity:0; pointer-events:none; }
+.activity-chip span {
+  display:block; padding:8px 11px; border-radius:999px; background:var(--soft);
+  border:1px solid transparent; font-size:12px; font-weight:750;
+}
+.activity-chip input:checked + span { background:var(--accent); color:var(--accent-text); }
+@media (max-width:560px){
+  .person-choice { grid-column:1/-1; }
+  .interaction-card { padding:14px; }
+}

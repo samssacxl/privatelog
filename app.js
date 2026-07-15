@@ -13,8 +13,25 @@ let selectedPartnerId = null;
 let calendarCursor = new Date();
 
 function load(){
-  try { return JSON.parse(localStorage.getItem(KEY)) || structuredClone(seed); }
-  catch { return structuredClone(seed); }
+  try {
+    const data=JSON.parse(localStorage.getItem(KEY)) || structuredClone(seed);
+    data.partners=(data.partners||[]).map(p=>({...p,identifier:p.identifier||"",aliases:Array.isArray(p.aliases)?p.aliases:[]}));
+    data.encounters=(data.encounters||[]).map(e=>{
+      const interactions={...(e.interactions||{})};
+      (e.partnerIds||[]).forEach(pid=>{
+        const old=interactions[pid]||{};
+        interactions[pid]={
+          myRole:(old.myRole||e.myRole||"").replace("Both","Vers"),
+          theirRole:(old.theirRole||(e.partnerRoles||{})[pid]||"").replace("Both","Vers"),
+          protection:old.protection||e.protection||"",
+          activities:Array.isArray(old.activities)?old.activities:[],
+          otherActivity:old.otherActivity||"", notes:old.notes||""
+        };
+      });
+      return {...e,interactions};
+    });
+    return {...structuredClone(seed),...data};
+  } catch { return structuredClone(seed); }
 }
 function save(){ localStorage.setItem(KEY, JSON.stringify(db)); render(); }
 const uid = () => crypto.randomUUID();
@@ -88,7 +105,7 @@ function recentRows(items){
     return `<button class="row" onclick="openEncounterModal('${e.id}')">
       <div class="row-main"><div class="row-title">${names}</div>
       <div class="meta">${fmt(e.date)} · ${esc([e.venue,e.city,e.country].filter(Boolean).join(", "))}</div>
-      <div class="badges"><span class="badge">${esc(e.protection||"Not set")}</span>${contextLabel(e)?`<span class="badge">${contextLabel(e)}</span>`:""}</div></div>
+      <div class="badges">${[...new Set(Object.values(e.interactions||{}).map(x=>x.protection).filter(Boolean))].map(v=>`<span class="badge">${esc(v)}</span>`).join("")||`<span class="badge">Not set</span>`}${contextLabel(e)?`<span class="badge">${contextLabel(e)}</span>`:""}</div></div>
       <span class="chevron">›</span></button>`;
   }).join("");
 }
@@ -106,12 +123,13 @@ function drawPartnerList(q){
   const list=document.querySelector("#partnerList");
   let items=db.partners.slice().sort((a,b)=>(b.favourite-a.favourite)||(Number(b.rating||-1)-Number(a.rating||-1))||a.nickname.localeCompare(b.nickname));
   q=q.toLowerCase().trim();
-  if(q) items=items.filter(p=>[p.nickname,p.nationality,p.instagram,p.displayId].some(v=>(v||"").toLowerCase().includes(q)));
+  if(q) items=items.filter(p=>[p.nickname,p.nationality,p.instagram,p.displayId,p.identifier,...(p.aliases||[])].some(v=>(v||"").toLowerCase().includes(q)));
   list.innerHTML=items.length?items.map(p=>{
     const es=partnerEncounters(p.id);
     return `<button class="row" onclick="openPartner('${p.id}')">
       <div class="row-main">
-        <div class="row-title">${p.favourite?"⭐ ":""}${esc(p.nickname)} ${p.nationality?`· ${esc(p.nationality)}`:""}</div>
+        <div class="row-title">${p.favourite?"⭐ ":""}${esc(p.nickname)} ${p.identifier?`· ${esc(p.identifier)}`:""}</div>
+        <div class="meta">${[p.nationality,p.instagram?`@${p.instagram}`:"",p.displayId].filter(Boolean).map(esc).join(" · ")}</div>
         <div class="meta">${ratingStars(p.rating)} · ${es.length} encounter${es.length===1?"":"s"}</div>
       </div><span class="chevron">›</span></button>`;
   }).join(""):`<div class="card empty"><div class="empty-icon">⌕</div><strong>No people found</strong><span>Try another search or log a new encounter.</span></div>`;
@@ -134,7 +152,9 @@ function renderPartnerProfile(el,id){
         <span class="badge">${ratingStars(p.rating)}</span>
         ${p.favourite?`<span class="badge">⭐ Favourite</span>`:""}
       </div>
+      ${p.identifier?`<p><strong>Identifier</strong><br>${esc(p.identifier)}</p>`:""}
       ${p.instagram?`<p><a href="https://instagram.com/${encodeURIComponent(p.instagram.replace("@",""))}" target="_blank" rel="noreferrer">@${esc(p.instagram.replace("@",""))}</a></p>`:""}
+      ${(p.aliases||[]).length?`<p><strong>Aliases</strong><br>${(p.aliases||[]).map(esc).join(", ")}</p>`:""}
       ${p.notes?`<p>${esc(p.notes)}</p>`:""}
     </section>
     <div class="grid stats-grid section">
@@ -213,8 +233,9 @@ function renderMoreSection(section){
   } else if(section==="trips"){
     el.innerHTML=`<div class="section-head"><h2>Trips</h2><button class="primary compact" onclick="openTripModal()">＋ Add</button></div><div class="list">${db.trips.map(t=>`<button class="row" onclick="openTripModal('${t.id}')"><div><div class="row-title">${esc(t.name)}</div><div class="meta">${fmt(t.startDate)} – ${fmt(t.endDate)} · ${esc(t.city||t.country||"")}</div></div><span>›</span></button>`).join("")||`<div class="card empty">No trips yet.</div>`}</div>`;
   } else if(section==="stats"){
-    const condoms=db.encounters.filter(e=>e.protection==="Condom").length;
-    const bare=db.encounters.filter(e=>e.protection==="Bareback").length;
+    const allInteractions=db.encounters.flatMap(e=>Object.values(e.interactions||{}));
+    const condoms=allInteractions.filter(x=>x.protection==="Condom").length;
+    const bare=allInteractions.filter(x=>x.protection==="Bareback").length;
     const avg=db.partners.filter(p=>p.rating!=="").reduce((s,p)=>s+Number(p.rating),0)/(db.partners.filter(p=>p.rating!=="").length||1);
     el.innerHTML=`<div class="grid stats-grid">${stat(db.partners.length,"People")}${stat(db.encounters.length,"Encounters")}${stat(avg?avg.toFixed(1):"—","Average overall")}${stat(db.partners.filter(p=>p.favourite).length,"Favourites")}</div>
     <div class="card section"><h2>Protection</h2><p>Condom: ${condoms}</p><p>Bareback: ${bare}</p></div>`;
@@ -267,12 +288,14 @@ function modal(){ return document.querySelector("#modal"); }
 function openSimpleModal(html){ document.querySelector("#modalContent").innerHTML=`${html}<div class="modal-actions"><button class="secondary" value="cancel">Close</button></div>`; modal().showModal(); }
 
 function openPartnerModal(id=null){
-  const p=id?partnerById(id):{id:uid(),nickname:"",nationality:"",instagram:"",rating:"",favourite:false,notes:"",displayId:""};
+  const p=id?partnerById(id):{id:uid(),nickname:"",identifier:"",aliases:[],nationality:"",instagram:"",rating:"",favourite:false,notes:"",displayId:""};
   const editing=!!id;
   document.querySelector("#modalContent").innerHTML=`
     <h2>${editing?"Edit":"New"} person</h2>
     <div class="form-grid">
       <label>Nickname<input id="pNickname" required value="${esc(p.nickname)}"></label>
+      <label>Identifier<input id="pIdentifier" value="${esc(p.identifier||"")}" placeholder="e.g. Bangkok Alex"></label>
+      <label>Aliases<input id="pAliases" value="${esc((p.aliases||[]).join(", "))}" placeholder="Separate aliases with commas"></label>
       <label>Nationality<input id="pNationality" value="${esc(p.nationality)}" placeholder="e.g. Thai"></label>
       <label>Instagram handle<input id="pInstagram" value="${esc(p.instagram)}" placeholder="@handle"></label>
       <label>Overall (optional)
@@ -295,6 +318,8 @@ function savePartner(id,editing){
   const old=partnerById(id);
   const item={
     id,nickname,
+    identifier:document.querySelector("#pIdentifier").value.trim(),
+    aliases:document.querySelector("#pAliases").value.split(",").map(x=>x.trim()).filter(Boolean),
     nationality:document.querySelector("#pNationality").value.trim(),
     instagram:document.querySelector("#pInstagram").value.trim().replace(/^@/,""),
     rating:document.querySelector("#pRating").value,
@@ -308,17 +333,18 @@ function savePartner(id,editing){
 function deletePartner(id){
   if(!confirm("Delete this person? Their encounters will remain but the person link will be removed."))return;
   db.partners=db.partners.filter(p=>p.id!==id);
-  db.encounters.forEach(e=>e.partnerIds=(e.partnerIds||[]).filter(x=>x!==id));
+  db.encounters.forEach(e=>{e.partnerIds=(e.partnerIds||[]).filter(x=>x!==id); if(e.interactions) delete e.interactions[id];});
   selectedPartnerId=null; modal().close(); save();
 }
-let encounterDraftState={selectedIds:[],partnerRoles:{}};
+let encounterDraftState={selectedIds:[],interactions:{}};
 function openEncounterModal(id=null,prefillPartner=null){
   const e=id?db.encounters.find(x=>x.id===id):{
     id:uid(),date:new Date().toISOString().slice(0,10),partnerIds:prefillPartner?[prefillPartner]:[],
-    protection:"",myRole:"",partnerRoles:{},country:"",city:"",venue:"",tripId:"",notes:""
+    interactions:{},country:"",city:"",venue:"",tripId:"",notes:""
   };
   const editing=!!id;
-  encounterDraftState={selectedIds:[...(e.partnerIds||[])],partnerRoles:{...(e.partnerRoles||{})}};
+  encounterDraftState={selectedIds:[...(e.partnerIds||[])],interactions:{...(e.interactions||{})}};
+  (e.partnerIds||[]).forEach(pid=>{ if(!encounterDraftState.interactions[pid]) encounterDraftState.interactions[pid]={myRole:e.myRole||"",theirRole:(e.partnerRoles||{})[pid]||"",protection:e.protection||"",activities:[],otherActivity:"",notes:""}; });
   const usedCountries=[...new Set(db.encounters.map(x=>x.country).filter(Boolean))];
   const usedCities=[...new Set(db.encounters.map(x=>x.city).filter(Boolean))];
   const usedVenues=[...new Set(db.encounters.map(x=>x.venue).filter(Boolean))];
@@ -332,8 +358,6 @@ function openEncounterModal(id=null,prefillPartner=null){
       <div id="participantChoices" class="choice-grid"></div>
       <button type="button" id="inlineCreateButton" class="secondary" style="display:none" onclick="showInlinePersonForm()"></button>
       <div id="inlinePersonForm"></div>
-      <label>Protection<select id="eProtection"><option value="">Not set</option>${["Condom","Bareback"].map(x=>`<option ${e.protection===x?"selected":""}>${x}</option>`).join("")}</select></label>
-      <label>My role<select id="eMyRole"><option value="">Not set</option>${["Top","Bottom","Both","Side"].map(x=>`<option ${e.myRole===x?"selected":""}>${x}</option>`).join("")}</select></label>
       <div id="partnerRoleFields"></div>
       <div class="grid two">
         <label>Country<input id="eCountry" list="countryList" value="${esc(e.country)}"><datalist id="countryList">${usedCountries.map(x=>`<option value="${esc(x)}">`).join("")}</datalist></label>
@@ -355,13 +379,12 @@ function openEncounterModal(id=null,prefillPartner=null){
 function renderParticipantPicker(query=""){
   const wrap=document.querySelector("#participantChoices"); if(!wrap)return;
   const q=query.trim().toLowerCase();
-  const people=db.partners.filter(p=>!q||[p.nickname,p.nationality,p.instagram].some(v=>(v||"").toLowerCase().includes(q)));
-  wrap.innerHTML=people.map(p=>`<button type="button" class="choice ${encounterDraftState.selectedIds.includes(p.id)?"selected":""}" data-id="${p.id}" onclick="toggleParticipant('${p.id}')">${esc(p.nickname)}${p.nationality?`<span class="choice-sub">${esc(p.nationality)}</span>`:""}</button>`).join("")||`<div class="subtle">No matching people.</div>`;
+  const people=db.partners.filter(p=>!q||[p.nickname,p.identifier,p.nationality,p.instagram,p.displayId,...(p.aliases||[])].some(v=>(v||"").toLowerCase().includes(q)));
+  wrap.innerHTML=people.map(p=>`<button type="button" class="choice person-choice ${encounterDraftState.selectedIds.includes(p.id)?"selected":""}" data-id="${p.id}" onclick="toggleParticipant('${p.id}')"><strong>${esc(p.nickname)}</strong>${p.identifier?`<span class="choice-sub">${esc(p.identifier)}</span>`:""}<span class="choice-sub">${[p.nationality,p.instagram?`@${p.instagram}`:"",p.displayId].filter(Boolean).map(esc).join(" · ")}</span><span class="choice-sub">${ratingStars(p.rating)} · ${partnerEncounters(p.id).length} encounters</span></button>`).join("")||`<div class="subtle">No matching people.</div>`;
   const create=document.querySelector("#inlineCreateButton");
   if(create){
-    const exact=db.partners.some(p=>p.nickname.toLowerCase()===q);
-    create.style.display=q&&!exact?"block":"none";
-    create.textContent=q?`＋ Add “${query.trim()}” to this encounter`:"";
+    create.style.display=q?"block":"none";
+    create.textContent=q?`＋ Create another person named “${query.trim()}”`:"";
     create.dataset.nickname=query.trim();
   }
   updatePartnerRoleFields();
@@ -374,13 +397,13 @@ function toggleParticipant(id){
 function selectedParticipantIds(){ return [...encounterDraftState.selectedIds]; }
 function showInlinePersonForm(){
   const nickname=document.querySelector("#inlineCreateButton")?.dataset.nickname||"";
-  document.querySelector("#inlinePersonForm").innerHTML=`<div class="inline-panel"><h3>New person</h3><div class="form-grid"><label>Nickname<input id="inlineNickname" value="${esc(nickname)}"></label><label>Nationality<input id="inlineNationality" placeholder="Optional"></label><label>Instagram handle<input id="inlineInstagram" placeholder="Optional"></label><label>Overall<select id="inlineOverall"><option value="">Not set</option>${Array.from({length:6},(_,i)=>5-i).map(v=>`<option value="${v}">${"★".repeat(v)}${"☆".repeat(5-v)}</option>`).join("")}</select></label></div><div class="modal-actions"><button type="button" class="secondary" onclick="document.querySelector('#inlinePersonForm').innerHTML=''">Cancel</button><button type="button" class="primary" onclick="createInlinePerson()">Add person</button></div></div>`;
+  document.querySelector("#inlinePersonForm").innerHTML=`<div class="inline-panel"><h3>New person</h3><div class="form-grid"><label>Nickname<input id="inlineNickname" value="${esc(nickname)}"></label><label>Identifier<input id="inlineIdentifier" placeholder="e.g. Bangkok Alex"></label><label>Aliases<input id="inlineAliases" placeholder="Optional, separated by commas"></label><label>Nationality<input id="inlineNationality" placeholder="Optional"></label><label>Instagram handle<input id="inlineInstagram" placeholder="Optional"></label><label>Overall<select id="inlineOverall"><option value="">Not set</option>${Array.from({length:6},(_,i)=>5-i).map(v=>`<option value="${v}">${"★".repeat(v)}${"☆".repeat(5-v)}</option>`).join("")}</select></label></div><div class="modal-actions"><button type="button" class="secondary" onclick="document.querySelector('#inlinePersonForm').innerHTML=''">Cancel</button><button type="button" class="primary" onclick="createInlinePerson()">Add person</button></div></div>`;
 }
 function createInlinePerson(){
   const nickname=document.querySelector("#inlineNickname").value.trim();
   if(!nickname){alert("Nickname is required.");return;}
   const date=document.querySelector("#eDate")?.value||new Date().toISOString().slice(0,10);
-  const person={id:uid(),nickname,nationality:document.querySelector("#inlineNationality").value.trim(),instagram:document.querySelector("#inlineInstagram").value.trim().replace(/^@/,""),rating:document.querySelector("#inlineOverall").value,favourite:false,notes:"",displayId:generatedPartnerCode(date)};
+  const person={id:uid(),nickname,identifier:document.querySelector("#inlineIdentifier").value.trim(),aliases:document.querySelector("#inlineAliases").value.split(",").map(x=>x.trim()).filter(Boolean),nationality:document.querySelector("#inlineNationality").value.trim(),instagram:document.querySelector("#inlineInstagram").value.trim().replace(/^@/,""),rating:document.querySelector("#inlineOverall").value,favourite:false,notes:"",displayId:generatedPartnerCode(date)};
   db.partners.push(person);
   encounterDraftState.selectedIds.push(person.id);
   document.querySelector("#inlinePersonForm").innerHTML="";
@@ -388,22 +411,43 @@ function createInlinePerson(){
   localStorage.setItem(KEY, JSON.stringify(db));
   renderParticipantPicker("");
 }
+function updateInteractionField(id,key,value){
+  encounterDraftState.interactions[id]??={myRole:"",theirRole:"",protection:"",activities:[],otherActivity:"",notes:""};
+  encounterDraftState.interactions[id][key]=value;
+}
+function toggleActivity(id,activity,checked){
+  encounterDraftState.interactions[id]??={myRole:"",theirRole:"",protection:"",activities:[],otherActivity:"",notes:""};
+  const arr=new Set(encounterDraftState.interactions[id].activities||[]);
+  checked?arr.add(activity):arr.delete(activity);
+  encounterDraftState.interactions[id].activities=[...arr];
+}
 function updatePartnerRoleFields(){
   const el=document.querySelector("#partnerRoleFields"); if(!el)return;
-  const current={}; document.querySelectorAll(".partnerRole").forEach(s=>current[s.dataset.id]=s.value);
-  encounterDraftState.partnerRoles={...encounterDraftState.partnerRoles,...current};
   el.innerHTML=selectedParticipantIds().map(id=>{
-    const p=partnerById(id),v=encounterDraftState.partnerRoles[id]||"";
-    return `<label>${esc(p.nickname)}'s role<select class="partnerRole" data-id="${id}" onchange="encounterDraftState.partnerRoles['${id}']=this.value"><option value="">Not set</option>${["Top","Bottom","Both","Side"].map(x=>`<option ${v===x?"selected":""}>${x}</option>`).join("")}</select></label>`;
+    const p=partnerById(id);
+    const x=encounterDraftState.interactions[id]||{myRole:"",theirRole:"",protection:"",activities:[],otherActivity:"",notes:""};
+    encounterDraftState.interactions[id]=x;
+    const roles=["Top","Bottom","Vers","Side","Unknown"];
+    const activities=["Oral","Anal","Rimming","Kissing","Mutual","Toys","Massage","Other"];
+    return `<section class="interaction-card">
+      <div class="interaction-head"><div><strong>${esc(p.nickname)}</strong>${p.identifier?`<span>${esc(p.identifier)}</span>`:""}</div><span class="profile-id">${esc(p.displayId||"")}</span></div>
+      <div class="grid two">
+        <label>My role with ${esc(p.nickname)}<select onchange="updateInteractionField('${id}','myRole',this.value)"><option value="">Not set</option>${roles.map(v=>`<option ${x.myRole===v?"selected":""}>${v}</option>`).join("")}</select></label>
+        <label>${esc(p.nickname)}'s role<select onchange="updateInteractionField('${id}','theirRole',this.value)"><option value="">Not set</option>${roles.map(v=>`<option ${x.theirRole===v?"selected":""}>${v}</option>`).join("")}</select></label>
+      </div>
+      <label>Protection with ${esc(p.nickname)}<select onchange="updateInteractionField('${id}','protection',this.value)"><option value="">Not set / N/A</option>${["Condom","Bareback"].map(v=>`<option ${x.protection===v?"selected":""}>${v}</option>`).join("")}</select></label>
+      <label>Activities & interaction<div class="activity-grid">${activities.map(a=>`<label class="activity-chip"><input type="checkbox" ${x.activities?.includes(a)?"checked":""} onchange="toggleActivity('${id}','${a}',this.checked)"><span>${a}</span></label>`).join("")}</div></label>
+      <label>Other activity<input value="${esc(x.otherActivity||"")}" placeholder="Optional" oninput="updateInteractionField('${id}','otherActivity',this.value)"></label>
+      <label>Notes about ${esc(p.nickname)}<textarea oninput="updateInteractionField('${id}','notes',this.value)">${esc(x.notes||"")}</textarea></label>
+    </section>`;
   }).join("");
 }
 function saveEncounter(id,editing){
   const partnerIds=selectedParticipantIds();
-  if(!partnerIds.length){alert("Select at least one partner.");return;}
-  const partnerRoles={...encounterDraftState.partnerRoles}; document.querySelectorAll(".partnerRole").forEach(s=>partnerRoles[s.dataset.id]=s.value);
-  const item={id,date:document.querySelector("#eDate").value,partnerIds,
-    protection:document.querySelector("#eProtection").value,myRole:document.querySelector("#eMyRole").value,
-    partnerRoles,country:document.querySelector("#eCountry").value.trim(),city:document.querySelector("#eCity").value.trim(),
+  if(!partnerIds.length){alert("Select at least one person.");return;}
+  const interactions={}; partnerIds.forEach(pid=>interactions[pid]=encounterDraftState.interactions[pid]||{myRole:"",theirRole:"",protection:"",activities:[],otherActivity:"",notes:""});
+  const item={id,date:document.querySelector("#eDate").value,partnerIds,interactions,
+    country:document.querySelector("#eCountry").value.trim(),city:document.querySelector("#eCity").value.trim(),
     venue:document.querySelector("#eVenue").value.trim(),tripId:document.querySelector("#eTrip").value,
     notes:document.querySelector("#eNotes").value.trim()};
   if(editing) db.encounters=db.encounters.map(x=>x.id===id?item:x); else db.encounters.push(item);

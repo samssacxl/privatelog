@@ -1,4 +1,4 @@
-# PrivateLog Web App v0.2.2
+# PrivateLog Web App v0.2.3
 
 A local-first personal web app. Data is stored only in the browser's localStorage unless you export it.
 
@@ -73,3 +73,15 @@ Visual-only release: refreshed Apple-inspired interface, glass cards, improved m
 - Added a friendlier home prompt and large New Encounter action.
 - Improved empty states, quick actions, labels, and touch feedback.
 - No changes to saved-data structure.
+
+
+## v0.2.3
+
+- Duplicate nicknames are supported safely through hidden UUIDs.
+- Added optional identifiers and aliases to distinguish people with the same nickname.
+- People search shows identifier, nationality, Instagram, visible ID, Overall and encounter count.
+- A new person can still be created when an exact nickname already exists.
+- Roles are now stored separately for every person in an encounter.
+- Replaced Both with Vers.
+- Protection, activities and personal notes are stored per person.
+- Existing v0.2 encounter data is migrated when edited.
