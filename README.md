@@ -1,4 +1,4 @@
-# PrivateLog Web App
+# PrivateLog Web App v0.2.1
 
 A local-first personal web app. Data is stored only in the browser's localStorage unless you export it.
 
@@ -61,3 +61,8 @@ The app must be hosted over HTTPS for the best experience.
 - Overall simplified to whole-star values from 0 to 5
 - Previous locations appear as autocomplete suggestions
 - Existing v0.1 browser data remains compatible
+
+
+## v0.2.1
+
+Visual-only release: refreshed Apple-inspired interface, glass cards, improved mobile navigation, forms, calendar, modal sheets and dark mode. Data storage and record format are unchanged.
